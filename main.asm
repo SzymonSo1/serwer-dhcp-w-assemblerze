@@ -3,13 +3,15 @@ global _start
 section .data
 
 msg_D db "Otrzymalem dhcp discover", 0x0
-msg_O db "Wyslalem dhcp offer", 0x0
-msg_R db "Otrzymalem dhcp request", 0x0
-msg_A db "Otrzymalem dhcp ack", 0x0
-
 len_msgD equ $-msg_D
+
+msg_O db "Wyslalem dhcp offer", 0x0
 len_msgO equ $-msg_O
+
+msg_R db "Otrzymalem dhcp request", 0x0
 len_msgR equ $-msg_R
+
+msg_A db "Otrzymalem dhcp ack", 0x0
 len_msgA equ $-msg_A
 
 srv_adr:
@@ -62,7 +64,7 @@ syscall
 
 ;mov r12, [fd]
 ;mov r13, [recbuff]
-call read_buf
+jmp read_buf
 jmp main_loop
 
 end_err:
@@ -76,20 +78,17 @@ mov rax, 0
 mov rcx, 0
 .l:
 mov rax, [recbuff+rcx]
-cmp rax,0
+cmp rax, 0x53
 je .opt53
 inc rcx
 cmp rax, 0xff
 jne .l
-.ret:
-ret
 .opt53:
 add rcx, 2
 mov rax, [recbuff+rcx]
 cmp rax, 3
 call print_req
-mov rax, 0xff
-jmp .ret
+jmp main_loop
 
 print_disc:
 push rax
