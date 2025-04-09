@@ -62,17 +62,7 @@ mov rsi, recbuff
 mov rdx, 1500
 syscall
 
-;mov r12, [fd]
-;mov r13, [recbuff]
-jmp read_buf
-jmp main_loop
-
-end_err:
-mov rdi, r12
-mov rax, 60
-syscall
-
-read_buf:
+read_dhcp_type:
 push rcx
 mov rax, 0
 mov rcx, 0
@@ -88,7 +78,13 @@ add rcx, 2
 mov rax, [recbuff+rcx]
 cmp rax, 3
 call print_req
+
 jmp main_loop
+
+end_err:
+mov rdi, r12
+mov rax, 60
+syscall
 
 print_disc:
 push rax
