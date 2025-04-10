@@ -100,7 +100,7 @@ call print_req
 ;mov rdx, len_msgD
 ;syscall
 
-sending:
+tworzenie_pakietu:
 mov byte [sendbuff], 0x2			; opcode 1,2 (req,res)
 mov byte [sendbuff+1], 0x1			; hw type (eth 1)
 mov byte [sendbuff+2], 0x6			; hw length (6 mac)
@@ -116,6 +116,19 @@ mov dword [sendbuff+28], [recbuff+28]		; mac adres
 mov word [sendbuff+32], [recbuff+32]		; mac adres cz 2
 mov qword [sendbuff+34], 0x0			; padding mac
 mov word [sendbuff+42], 0x0			; padding mac cz 2
+mov dword [sendbuff+236], 0x63825363		; ciasteczko dhcp
+mov word [sendbuff+240], 0x3501			; opcja 53 dlugosc 1
+mov byte [sendbuff+242], 0x05			; 5 - dhcpack
+mov word [sendbuff+243], 0x0104			; maska podsieci, dlugosc opcji
+mov dword [sendbuff+245], 0xffffff00		; 
+mov word [sendbuff+249], 0x3304			; ip lease time
+mov word [sendbuff+251], 0x3840			; czas 
+mov word [sendbuff+253], 0x3601			; ip servera
+mov dword [sendbuff+255], [adr+4]		;
+mov byte [sendbuff+259], 0xFF			; koniec opcji,pakietu
+
+wysylanie:
+
 
 
 jmp main_loop
