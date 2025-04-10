@@ -2,17 +2,19 @@ global _start
 
 section .data
 
-msg_D db "Otrzymalem dhcp discover", 0x0
+msg_D db "Otrzymalem dhcp discover", 0xA,0x0
 len_msgD equ $-msg_D
 
-msg_O db "Wyslalem dhcp offer", 0x0
+msg_O db "Wyslalem dhcp offer", 0xA, 0x0
 len_msgO equ $-msg_O
 
-msg_R db "Otrzymalem dhcp request", 0x0
+msg_R db "Otrzymalem dhcp request", 0xA, 0x0
 len_msgR equ $-msg_R
 
-msg_A db "Otrzymalem dhcp ack", 0x0
+msg_A db "Otrzymalem dhcp ack", 0xA, 0x0
 len_msgA equ $-msg_A
+
+nullter db 0xA, 0x0
 
 srv_adr:
 adr:
@@ -28,6 +30,7 @@ section .bss
 
 fd: resd 1 
 recbuff: resq 256
+sendbuff: resq 256
 
 section .text
 ;rdi rsi rdx r10 r8 r9
@@ -67,7 +70,7 @@ push rcx
 mov rax, 0
 mov rcx, 0
 .l:
-mov rax, [recbuff+rcx]
+mov byte rax, [recbuff+rcx]
 cmp rax, 0x53
 je .opt53
 inc rcx
@@ -75,9 +78,19 @@ cmp rax, 0xff
 jne .l
 .opt53:
 add rcx, 2
-mov rax, [recbuff+rcx]
-cmp rax, 3
+mov byte rax, [recbuff+rcx]
+cmp rax, 0x3
 call print_req
+
+
+mov byte al, [recbuff+2]
+cmp rax, 0x6
+jne main_loop
+mov rax, 1
+mov rdi, 1
+mov rsi, msg_D
+mov rdx, len_msgD
+syscall
 
 jmp main_loop
 
