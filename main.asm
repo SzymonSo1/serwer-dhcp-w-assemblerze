@@ -11,10 +11,14 @@ len_msgO equ $-msg_O
 msg_R db "Otrzymalem dhcp request", 0xA, 0x0
 len_msgR equ $-msg_R
 
-msg_A db "Otrzymalem dhcp ack", 0xA, 0x0
+msg_A db "Wyslalem dhcp ack", 0xA, 0x0
 len_msgA equ $-msg_A
 
-nullter db 0xA, 0x0
+msg_Rel db "Otrzymalem dhcp release", 0xA, 0x0
+len_msgRel equ $-msg_Rel
+
+msg_I db "Otrzymalem dhcp inform", 0xA, 0x0
+len_msgI equ $-msg_I
 
 srv_adr:
 adr:
@@ -79,26 +83,36 @@ jne main_loop
 read_dhcp_type:
 push rcx
 mov rax, 0
-mov rcx, 0
+mov rcx, 236
 .l:
-mov byte rax, [recbuff+rcx]
-cmp rax, 0x53
+xor rax, rax
+mov byte al, [recbuff+rcx]
+cmp al, 0x35
 je .opt53
 inc rcx
-cmp rax, 0xff
+cmp al, 0xff
 jne .l
 .opt53:
 add rcx, 2
-mov byte rax, [recbuff+rcx]
-cmp rax, 0x3
-call print_req
+mov byte al, [recbuff+rcx]
+cmp al, 0x1
+je print_disc
+cmp al, 0x2
+je print_offer
+cmp al, 0x3
+je print_req
+cmp al, 0x5
+je print_ack
+cmp al, 0x7
+je print_rel
 
+tworzenie_pakietu:
 mov word [clientadr], 0x2
 mov word [clientadr+2], 0x4400
 mov dword [clientadr+4], 0x0100007F
 mov qword [clientadr+8], 0x0
 
-tworzenie_pakietu:
+
 xor rax, rax
 mov byte [sendbuff], 0x2			; opcode 1,2 (req,res)
 mov byte [sendbuff+1], 0x1			; hw type (eth 1)
@@ -147,7 +161,14 @@ mov r8, clientadr
 mov r9, 0x10
 syscall
 
-jmp main_loop
+finish_info:
+cmp r15, 0x0
+je main_loop
+
+cmp r15, 0x2
+je print_offer
+cmp r15, 0x5
+je print_offer
 
 end_err:
 mov rdi, r12
@@ -155,21 +176,45 @@ mov rax, 60
 syscall
 
 print_disc:
-push rax
+mov r15, 0x2
 mov rax, 1
 mov rdi, 1
 mov rsi, msg_D 
 mov rdx, len_msgD
-pop rax
 syscall
-ret
+jmp tworzenie_pakietu
 
 print_req:
-push rax
-mov rax,1
+mov r15, 0x5
+mov rax, 1
 mov rdi, 1
 mov rsi, msg_R
-mov rdx, 25
+mov rdx, len_msgR
 syscall
-pop rax
-ret
+jmp tworzenie_pakietu
+
+print_offer:
+xor r15, r15
+mov rax, 1
+mov rdi, 1
+mov rsi, msg_O
+mov rdx, len_msgO
+syscall
+jmp finish_info
+
+print_ack:
+xor r15, r15
+mov rax, 1
+mov rdi, 1
+mov rsi, msg_A
+mov rdx, len_msgA
+syscall
+jmp finish_info
+
+print_rel:
+mov rax, 1
+mov rdi, 1
+mov rsi, msg_Rel
+mov rdx, len_msgRel
+syscall
+jmp main_loop
