@@ -20,6 +20,9 @@ len_msgRel equ $-msg_Rel
 msg_I db "Otrzymalem dhcp inform", 0xA, 0x0
 len_msgI equ $-msg_I
 
+ip_err db "niepoprawny zakres ip", 0xA, 0x0
+len_iperr equ $-ip_err
+
 srv_adr:
 adr:
 dw 0x2
@@ -42,10 +45,30 @@ resw 1
 resd 1
 resq 1
 
+pocz_adr: resd 1
+konc_adr: resd 1
+ilosc_ip: resd 1
+nast_ip: resd 1
+
 section .text
 ;rdi rsi rdx r10 r8 r9
 _start:
-;socket:
+;inicjalizacja granicznych adresow puli:
+xor rax, rax
+mov dword [pocz_adr], 0xC0A80164
+mov dword [konc_adr], 0xC0A80167 
+
+mov eax, [pocz_adr]
+mov ebx, [konc_adr]
+mov dword [nast_ip], eax
+
+sub ebx, eax
+inc ebx
+cmp ebx, 0
+jle ilosc_ip_err
+mov dword [ilosc_ip], eax
+
+otwarcie_socketu:
 mov rax, 41
 mov rdi, 2
 mov rsi, 2
@@ -97,12 +120,8 @@ add rcx, 2
 mov byte al, [recbuff+rcx]
 cmp al, 0x1
 je print_disc
-cmp al, 0x2
-je print_offer
 cmp al, 0x3
 je print_req
-cmp al, 0x5
-je print_ack
 cmp al, 0x7
 je print_rel
 
@@ -110,7 +129,7 @@ tworzenie_pakietu:
 mov word [clientadr], 0x2
 mov word [clientadr+2], 0x4400
 mov dword [clientadr+4], 0x0100007F
-mov qword [clientadr+8], 0x0
+mov qword [clientadr+8], 0x0 ; cos z adresem klienta inicjalizacja chyba nie wiem juz zapomnialem
 
 
 xor rax, rax
@@ -125,6 +144,10 @@ mov word [sendbuff+8], 0x0			; jakies sekundy
 mov word [sendbuff+10], 0x0			; boottp flags unicast - 0
 mov dword eax, [recbuff+12]
 mov dword [sendbuff+12], eax			; adres klienta
+mov dword eax, [nast_ip]
+rol ax, 8
+rol eax, 16
+rol ax, 8
 mov dword [sendbuff+16], eax			; nowy adres
 mov dword eax, [adr+4]
 mov dword [sendbuff+20], eax			; adres serwera
@@ -144,7 +167,7 @@ mov byte [sendbuff+242], 0x05			; 5 - dhcpack
 mov word [sendbuff+243], 0x0401			; maska podsieci, dlugosc opcji
 mov dword [sendbuff+245], 0x00ffffff		; 
 mov word [sendbuff+249], 0x0433			; ip lease time
-mov dword [sendbuff+251], 0x40380000			; czas 
+mov dword [sendbuff+251], 0x40380000		; czas 
 mov word [sendbuff+255], 0x0436			; ip servera
 mov dword eax, [adr+4]
 mov dword [sendbuff+257], eax			;
@@ -161,6 +184,20 @@ mov r8, clientadr
 mov r9, 0x10
 syscall
 
+next_adr:
+xor rax, rax
+mov eax, [nast_ip]
+cmp eax, [konc_adr]
+je .r
+inc eax
+mov [nast_ip], eax
+jmp finish_info
+.r:
+mov eax, [pocz_adr]
+dec eax
+mov [nast_ip], eax
+jmp next_adr
+
 finish_info:
 cmp r15, 0x0
 je main_loop
@@ -169,6 +206,14 @@ cmp r15, 0x2
 je print_offer
 cmp r15, 0x5
 je print_offer
+
+ilosc_ip_err:
+mov r12, 1
+mov rax, 1
+mov rdi, 1
+mov rsi, ip_err
+mov rdx, len_iperr
+syscall
 
 end_err:
 mov rdi, r12
