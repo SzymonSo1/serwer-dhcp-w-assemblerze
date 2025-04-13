@@ -20,7 +20,7 @@ len_msgRel equ $-msg_Rel
 msg_I db "Otrzymalem dhcp inform", 0xA, 0x0
 len_msgI equ $-msg_I
 
-ip_err db "niepoprawny zakres ip", 0xA, 0x0
+ip_err db "Niepoprawny zakres ip", 0xA, 0x0
 len_iperr equ $-ip_err
 
 srv_adr:
@@ -49,11 +49,12 @@ pocz_adr: resd 1
 konc_adr: resd 1
 ilosc_ip: resd 1
 nast_ip: resd 1
+brama: resd 1
 
 section .text
 ;rdi rsi rdx r10 r8 r9
 _start:
-;inicjalizacja granicznych adresow puli:
+;inicjalizacja adresow:
 xor rax, rax
 mov dword [pocz_adr], 0xC0A80164
 mov dword [konc_adr], 0xC0A80167 
@@ -67,7 +68,8 @@ inc ebx
 cmp ebx, 0
 jle ilosc_ip_err
 mov dword [ilosc_ip], eax
-
+xor eax, eax
+mov dword [brama], 0x0101A8C0
 otwarcie_socketu:
 mov rax, 41
 mov rdi, 2
@@ -155,34 +157,47 @@ mov dword [sendbuff+20], eax			; adres serwera
 mov dword [sendbuff+24], 0x0			; relay adres
 mov dword eax, [recbuff+28]
 mov dword [sendbuff+28], eax			; mac adres
-xor eax, eax
+xor eax, eax					
 mov word ax, [recbuff+32]
 mov word [sendbuff+32], ax			; mac adres cz 2
-xor ax, ax
+xor ax, ax					;
 mov qword [sendbuff+34], 0x0			; padding mac
 mov word [sendbuff+42], 0x0			; padding mac cz 2
 mov dword [sendbuff+236], 0x63538263		; ciasteczko dhcp
-mov word [sendbuff+240], 0x0135			; opcja 53 dlugosc 1
-mov byte [sendbuff+242], 0x05			; 5 - dhcpack
-mov word [sendbuff+243], 0x0401			; maska podsieci, dlugosc opcji
-mov dword [sendbuff+245], 0x00ffffff		; 
-mov word [sendbuff+249], 0x0433			; ip lease time
-mov dword [sendbuff+251], 0x40380000		; czas 
-mov word [sendbuff+255], 0x0436			; ip servera
+xor rcx, rcx	
+mov rcx, 240
+mov word [sendbuff+rcx], 0x0135			; opcja 53 dlugosc 1
+add rcx, 2
+mov byte [sendbuff+rcx], 0x05			; 5 - dhcpack
+inc rcx
+mov word [sendbuff+rcx], 0x0401			; maska podsieci, dlugosc opcji
+add rcx, 2
+mov dword [sendbuff+rcx], 0x00ffffff		; 
+add rcx, 4
+mov word [sendbuff+rcx], 0x0433			; ip lease time
+add rcx, 2
+mov dword [sendbuff+rcx], 0x40380000		; czas 
+add rcx, 4
+mov word [sendbuff+rcx], 0x0436			; ip servera
+add rcx, 2
 mov dword eax, [adr+4]
-mov dword [sendbuff+257], eax			;
+mov dword [sendbuff+rcx], eax			;
+add rcx, 4
 xor rax, rax
-mov byte [sendbuff+261], 0xFF			; koniec opcji,pakietu
-
+mov byte [sendbuff+rcx], 0xFF			; koniec opcji,pakietu
+inc rcx
+mov r13, rcx
+xor rcx, rcx
 wysylanie:
 mov rax, 44
 mov rdi, [fd]
 mov rsi, sendbuff
-mov rdx, 262
+mov rdx, r13
 mov r10, 0
 mov r8, clientadr
 mov r9, 0x10
 syscall
+xor r13, r13
 
 next_adr:
 xor rax, rax
