@@ -52,6 +52,7 @@ ilosc_ip: resd 1
 nast_ip: resd 1
 brama: resd 1
 nieof_ip: resd 1
+bc_ip: resd 1
 
 section .text
 ;rdi rsi rdx r10 r8 r9
@@ -73,6 +74,7 @@ jle ilosc_ip_err
 mov dword [ilosc_ip], eax
 xor eax, eax
 mov dword [brama], 0x0101A8C0
+mov dword [bc_ip], 0xff01a8c0
 otwarcie_socketu:
 mov rax, 41
 mov rdi, 2
@@ -149,7 +151,8 @@ je go_bc
 mov dword [clientadr+4], eax
 jmp tworzenie_dhcp
 go_bc:
-mov dword [clientadr+4], 0xff01a8c0
+mov eax, [bc_ip]
+mov dword [clientadr+4], eax
 
 tworzenie_dhcp:
 xor rax, rax
@@ -197,6 +200,13 @@ je .reszta
 mov word [sendbuff+rcx], 0x0433			; ip lease time
 add rcx, 2
 mov dword [sendbuff+rcx], 0x40380000		; czas 
+add rcx, 4
+mov word [sendbuff+rcx], 0x041c			; opcja adres broadcast
+add rcx, 2
+xor eax, eax
+mov eax, [bc_ip]
+mov dword [sendbuff+rcx], eax			; adres broadcast
+xor eax, eax
 add rcx, 4
 .reszta:
 mov word [sendbuff+rcx], 0x0436			; ip servera
