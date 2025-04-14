@@ -23,18 +23,20 @@ len_msgI equ $-msg_I
 ip_err db "Niepoprawny zakres ip", 0xA, 0x0
 len_iperr equ $-ip_err
 
+bc: dd 1
+
 adr:
 dw 0x2
 dw 0x4300
-db 0xff;0x7F
-db 0xff;0x00
-db 0xff;0x00
-db 0xff;0x1
+db 0x0;c0;0x7F
+db 0x0;a8;0x00
+db 0x0;01;0x00
+db 0x0;01;0x1
 dq 0x0
 
 section .bss
 
-fd: resd 1
+fd: resd 1 
 recbuff: resq 256
 sendbuff: resq 256
 
@@ -58,7 +60,7 @@ _start:
 xor rax, rax
 mov dword [nieof_ip], 0x0101A8C0
 mov dword [pocz_adr], 0xC0A80164
-mov dword [konc_adr], 0xC0A80167
+mov dword [konc_adr], 0xC0A80167 
 
 mov eax, [pocz_adr]
 mov ebx, [konc_adr]
@@ -93,6 +95,14 @@ cmp rax, 0
 jne end_err
 xor r12, r12
 ;
+
+mov rax, 0x36
+mov rdi, [fd]
+mov rsi, 1
+mov rdx, 0x6
+mov r10, bc
+mov r8b, 4
+syscall ;wlaczenie mozliwosci nadawanie broadcast
 
 main_loop:
 mov rax, 0
@@ -132,63 +142,70 @@ je print_rel
 tworzenie_pakietu:
 mov word [clientadr], 0x2
 mov word [clientadr+2], 0x4400
-mov dword [clientadr+4], 0x0;0x0100007F
-mov qword [clientadr+8], 0x0 ; cos z adresem klienta inicjalizacja chyba nie wiem juz zapomnialem
-
-xor rax, rax
-mov byte [sendbuff], 0x2                        ; opcode 1,2 (req,res)
-mov byte [sendbuff+1], 0x1                      ; hw type (eth 1)
-mov byte [sendbuff+2], 0x6                      ; hw length (6 mac)
-mov byte [sendbuff+3], 0x0                      ; hops 0
-mov dword eax, [recbuff+4]
-mov dword [sendbuff+4], eax                     ; transaction id
-xor eax, eax
-mov word [sendbuff+8], 0x0                      ; jakies sekundy
-mov word [sendbuff+10], 0x0                     ; boottp flags unicast - 0
 mov dword eax, [recbuff+12]
-mov dword [sendbuff+12], eax                    ; adres klienta
+mov qword [clientadr+8], 0x0
+cmp eax, 0x0
+je go_bc
+mov dword [clientadr+4], eax
+jmp tworzenie_dhcp
+go_bc:
+mov dword [clientadr+4], 0xff01a8c0
+
+tworzenie_dhcp:
+xor rax, rax
+mov byte [sendbuff], 0x2			; opcode 1,2 (req,res)
+mov byte [sendbuff+1], 0x1			; hw type (eth 1)
+mov byte [sendbuff+2], 0x6			; hw length (6 mac)
+mov byte [sendbuff+3], 0x0			; hops 0
+mov dword eax, [recbuff+4]
+mov dword [sendbuff+4], eax			; transaction id
+xor eax, eax
+mov word [sendbuff+8], 0x0			; jakies sekundy
+mov word [sendbuff+10], 0x0			; boottp flags unicast - 0
+mov dword eax, [recbuff+12]
+mov dword [sendbuff+12], eax			; adres klienta
 mov dword eax, [nast_ip]
 rol ax, 8
 rol eax, 16
 rol ax, 8
-mov dword [sendbuff+16], eax                    ; nowy adres
+mov dword [sendbuff+16], eax			; nowy adres
 mov dword eax, [adr+4]
-mov dword [sendbuff+20], eax                    ; adres serwera
+mov dword [sendbuff+20], eax			; adres serwera
 ;xor eax, eax
-mov dword [sendbuff+24], 0x0                    ; relay adres
+mov dword [sendbuff+24], 0x0			; relay adres
 mov dword eax, [recbuff+28]
-mov dword [sendbuff+28], eax                    ; mac adres
-xor eax, eax
+mov dword [sendbuff+28], eax			; mac adres
+xor eax, eax					
 mov word ax, [recbuff+32]
-mov word [sendbuff+32], ax                      ; mac adres cz 2
-xor ax, ax                                      ;
-mov qword [sendbuff+34], 0x0                    ; padding mac
-mov word [sendbuff+42], 0x0                     ; padding mac cz 2
-mov dword [sendbuff+236], 0x63538263            ; ciasteczko dhcp
-xor rcx, rcx
+mov word [sendbuff+32], ax			; mac adres cz 2
+xor ax, ax					;
+mov qword [sendbuff+34], 0x0			; padding mac
+mov word [sendbuff+42], 0x0			; padding mac cz 2
+mov dword [sendbuff+236], 0x63538263		; ciasteczko dhcp
+xor rcx, rcx	
 mov rcx, 240
-mov word [sendbuff+rcx], 0x0135                 ; opcja 53 dlugosc 1
+mov word [sendbuff+rcx], 0x0135			; opcja 53 dlugosc 1
 add rcx, 2
-mov byte [sendbuff+rcx], r15b                   ; typ
+mov byte [sendbuff+rcx], r15b			; typ
 inc rcx
-mov word [sendbuff+rcx], 0x0401                 ; maska podsieci, dlugosc opcji
+mov word [sendbuff+rcx], 0x0401			; maska podsieci, dlugosc opcji
 add rcx, 2
-mov dword [sendbuff+rcx], 0x00ffffff            ;
+mov dword [sendbuff+rcx], 0x00ffffff		; 
 add rcx, 4
 cmp r15b, 0x2
 je .reszta
-mov word [sendbuff+rcx], 0x0433                 ; ip lease time
+mov word [sendbuff+rcx], 0x0433			; ip lease time
 add rcx, 2
-mov dword [sendbuff+rcx], 0x40380000            ; czas
+mov dword [sendbuff+rcx], 0x40380000		; czas 
 add rcx, 4
 .reszta:
-mov word [sendbuff+rcx], 0x0436                 ; ip servera
+mov word [sendbuff+rcx], 0x0436			; ip servera
 add rcx, 2
 mov dword eax, [nieof_ip]
-mov dword [sendbuff+rcx], eax                   ;
+mov dword [sendbuff+rcx], eax			;
 add rcx, 4
 xor rax, rax
-mov byte [sendbuff+rcx], 0xFF                   ; koniec opcji,pakietu
+mov byte [sendbuff+rcx], 0xFF			; koniec opcji,pakietu
 inc rcx
 mov r13, rcx
 xor rcx, rcx
@@ -198,7 +215,7 @@ mov rax, 44
 mov rdi, [fd]
 mov rsi, sendbuff
 mov rdx, r13
-mov r10, 0
+mov r10, 0x8
 mov r8, clientadr
 mov r9, 0x10
 syscall
@@ -247,7 +264,7 @@ print_disc:
 mov r15, 0x2
 mov rax, 1
 mov rdi, 1
-mov rsi, msg_D
+mov rsi, msg_D 
 mov rdx, len_msgD
 syscall
 jmp tworzenie_pakietu
